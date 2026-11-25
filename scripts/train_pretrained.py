@@ -3,9 +3,9 @@ from som import SOM
 
 # Tu mejor configuración de la práctica
 LADO = 50
-PERIODO = 5000
-LEARNING_RATE = 0.4
-NUM_DATOS = 100
+PERIODO = 10000
+LEARNING_RATE = 0.1
+NUM_DATOS = 500
 SEED = 42
 
 rng = np.random.default_rng(SEED)

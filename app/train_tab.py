@@ -2,7 +2,8 @@ import numpy as np
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QFormLayout,
                                QSpinBox, QDoubleSpinBox, QSlider, QPushButton,
-                               QProgressBar, QLabel, QGroupBox, QFileDialog)
+                               QProgressBar, QLabel, QGroupBox, QFileDialog,
+                               QCheckBox)
 
 from som import SOM
 from .map_widget import MapWidget
@@ -12,6 +13,20 @@ PASOS_POR_FOTOGRAMA = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000]
 
 # Colores que el modelo no ve al entrenar, para medir los errores al final
 TEST = np.random.default_rng(999).integers(0, 256, (1000, 3)) / 255
+
+# Ayuda corta que aparece al pasar el ratón por cada campo
+AYUDA = {
+    "lado": "Nº de neuronas por lado (lado × lado en total).\n"
+            "Más grande = más detalle y menos error de cuantificación, pero más lento.",
+    "periodo": "Nº de iteraciones de entrenamiento.\n"
+               "Más iteraciones = mapa más ordenado (menos error topológico), pero más lento.",
+    "lr": "Cuánto se mueven los pesos hacia cada color al principio.\n"
+          "Muy bajo (< 0.05) = apenas aprende. Entre 0.1 y 0.5 suele ir bien.",
+    "datos": "Cuántos colores aleatorios se usan para entrenar.\n"
+             "Más colores = más variedad y mejor generalización.",
+    "seed": "Con semilla fija, mismos ajustes = exactamente el mismo resultado.\n"
+            "Desactívala para ver cuánto varía el mapa de una vez a otra.",
+}
 
 
 class TrainTab(QWidget):
@@ -39,11 +54,32 @@ class TrainTab(QWidget):
         self.sp_seed = QSpinBox(); self.sp_seed.setRange(0, 99999); self.sp_seed.setValue(42)
 
         form = QFormLayout()
-        form.addRow("Lado del mapa:", self.sp_lado)
-        form.addRow("Periodo (iteraciones):", self.sp_periodo)
-        form.addRow("Learning rate inicial:", self.sp_lr)
-        form.addRow("Nº de colores:", self.sp_datos)
-        form.addRow("Semilla:", self.sp_seed)
+
+        def fila(texto, widget, ayuda):
+            # Etiqueta con ⓘ; la ayuda sale al pasar el ratón por la etiqueta o por la casilla
+            etiqueta = QLabel(f"{texto} ⓘ")
+            etiqueta.setToolTip(ayuda)
+            widget.setToolTip(ayuda)
+            form.addRow(etiqueta, widget)
+
+        fila("Lado del mapa", self.sp_lado, AYUDA["lado"])
+        fila("Periodo (iteraciones)", self.sp_periodo, AYUDA["periodo"])
+        fila("Learning rate inicial", self.sp_lr, AYUDA["lr"])
+        fila("Nº de colores", self.sp_datos, AYUDA["datos"])
+
+        # Semilla: casilla para activarla + número
+        self.chk_seed = QCheckBox("Fija")
+        self.chk_seed.setChecked(True)
+        self.chk_seed.toggled.connect(self.sp_seed.setEnabled)
+        self.chk_seed.setToolTip(AYUDA["seed"])
+        fila_seed = QHBoxLayout()
+        fila_seed.addWidget(self.chk_seed)
+        fila_seed.addWidget(self.sp_seed, stretch=1)
+        etiqueta_seed = QLabel("Semilla ⓘ")
+        etiqueta_seed.setToolTip(AYUDA["seed"])
+        self.sp_seed.setToolTip(AYUDA["seed"])
+        form.addRow(etiqueta_seed, fila_seed)
+
         self.grupo_params = QGroupBox("Hiperparámetros")
         self.grupo_params.setLayout(form)
 
@@ -103,7 +139,12 @@ class TrainTab(QWidget):
 
     def _empezar(self):
         lado = self.sp_lado.value()
-        seed = self.sp_seed.value()
+        if self.chk_seed.isChecked():
+            seed = self.sp_seed.value()
+        else:
+            # Semilla al azar, pero la mostramos para poder repetir el resultado
+            seed = int(np.random.default_rng().integers(0, 100000))
+            self.sp_seed.setValue(seed)
         self.periodo = self.sp_periodo.value()
         self.lr0 = self.sp_lr.value()
         datos = np.random.default_rng(seed).integers(0, 256, (self.sp_datos.value(), 3)) / 255
@@ -167,6 +208,7 @@ class TrainTab(QWidget):
         self.lbl_resultado.setText(f"<b>Entrenamiento terminado</b><br>"
                                    f"Error de cuantificación: {ec:.4f}<br>"
                                    f"Error topológico: {et:.3f}<br>"
+                                   f"Semilla: {self.sp_seed.value()}<br>"
                                    f"<small>(medidos con 1000 colores que no ha visto)</small>")
 
     # ---------- utilidades ----------

@@ -42,6 +42,7 @@ class PredictTab(QWidget):
         self.info = QLabel(TEXTO_INICIAL)
         self.info.setWordWrap(True)
         self.lista = QListWidget()
+        self.lista.currentRowChanged.connect(self._seleccionar)
         btn_limpiar = QPushButton("Limpiar")
         btn_limpiar.clicked.connect(self._limpiar)
 
@@ -72,22 +73,32 @@ class PredictTab(QWidget):
             self.probar_color((color.red(), color.green(), color.blue()))
 
     def probar_color(self, rgb):
-        patron = np.array(rgb) / 255  # misma normalización que en el entrenamiento
-        i, j = self.som.bmu(patron)
-        distancia = np.linalg.norm(self.som.pesos[i, j] - patron)
+        patron = np.array(rgb) / 255
+        b1, b2 = self.som.dos_bmus(patron)
+        distancia = np.linalg.norm(self.som.pesos[b1] - patron)
+        vecinas = abs(b1[0] - b2[0]) <= 1 and abs(b1[1] - b2[1]) <= 1
 
-        self.probados.append((rgb, i, j))
-        self.lista.addItem(QListWidgetItem(icono_color(rgb), f"RGB{rgb} → ({i}, {j})"))
-        self.info.setText(f"RGB{rgb} va a la neurona ({i}, {j}).\n"
-                          f"Distancia a su peso: {distancia:.3f}")
-        self._actualizar_marcadores()
+        texto = (f"RGB{rgb}\n"
+                 f"BMU: {b1}   (distancia {distancia:.3f})\n"
+                 f"2ª BMU: {b2}\n"
+                 + ("Son vecinas ✓" if vecinas else "No son vecinas ✗ (error topológico)"))
 
-    def _actualizar_marcadores(self):
-        self.mapa.set_marcadores(
-            [(i, j, tuple(c / 255 for c in rgb)) for rgb, i, j in self.probados])
+        self.probados.append({"bmu": b1, "segunda": b2,
+                              "color": tuple(c / 255 for c in rgb), "texto": texto})
+        item = QListWidgetItem(icono_color(rgb), f"RGB{rgb} → {b1}")
+        item.setToolTip(texto)  # tooltip también al pasar el ratón por la lista
+        self.lista.addItem(item)
+        self.mapa.set_marcadores(self.probados)
+        self.lista.setCurrentRow(len(self.probados) - 1)  # selecciona el nuevo
+
+    def _seleccionar(self, fila):
+        self.mapa.set_seleccionado(fila)
+        if 0 <= fila < len(self.probados):
+            self.info.setText(self.probados[fila]["texto"])
 
     def _limpiar(self):
         self.probados.clear()
         self.lista.clear()
+        self.mapa.set_marcadores([])
+        self.mapa.set_seleccionado(-1)
         self.info.setText(TEXTO_INICIAL)
-        self._actualizar_marcadores()

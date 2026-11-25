@@ -114,3 +114,16 @@ class SOM:
         som = cls(lado=pesos.shape[0], num_entradas=pesos.shape[2])
         som.pesos = pesos
         return som
+
+
+#=================================
+#====== Devuelve las 2 BMUs ======
+#=================================
+
+    def dos_bmus(self, patron):
+        # Primera y segunda neurona más parecidas al patrón
+        d = self._distancias(patron).ravel()
+        primera, segunda = np.argsort(d)[:2]
+        b1 = np.unravel_index(primera, (self.lado, self.lado))
+        b2 = np.unravel_index(segunda, (self.lado, self.lado))
+        return (int(b1[0]), int(b1[1])), (int(b2[0]), int(b2[1]))
